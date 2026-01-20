@@ -1,10 +1,8 @@
-from PIL import Image
+from PIL import Image, ImageSequence
 import os
 
-# 要转换的根目录
 root = "."
 
-# 支持的图片格式
 image_exts = [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff"]
 
 for folder, subfolders, files in os.walk(root):
@@ -16,19 +14,33 @@ for folder, subfolders, files in os.walk(root):
             webp_path = os.path.join(folder, os.path.splitext(filename)[0] + ".webp")
 
             try:
-                img = Image.open(img_path)
+                # 使用 with 自动关闭文件句柄
+                with Image.open(img_path) as img:
 
-                # GIF 转 WebP 只取第一帧
-                if ext == ".gif":
-                    img = img.convert("RGBA")
-                else:
-                    img = img.convert("RGBA")
+                    if ext == ".gif" and getattr(img, "is_animated", False):
+                        frames = []
+                        durations = []
 
-                img.save(webp_path, "webp", quality=85)
+                        for frame in ImageSequence.Iterator(img):
+                            frames.append(frame.convert("RGBA"))
+                            durations.append(frame.info.get("duration", 100))
+
+                        frames[0].save(
+                            webp_path,
+                            format="WEBP",
+                            save_all=True,
+                            append_images=frames[1:],
+                            duration=durations,
+                            loop=0,
+                            quality=85,
+                        )
+
+                    else:
+                        img.convert("RGBA").save(webp_path, "webp", quality=85)
 
                 print(f"转换成功: {img_path} → {webp_path}")
 
-                # 转换成功后删除原图
+                # 现在文件句柄已经关闭，可以安全删除
                 os.remove(img_path)
                 print(f"已删除原图: {img_path}")
 
